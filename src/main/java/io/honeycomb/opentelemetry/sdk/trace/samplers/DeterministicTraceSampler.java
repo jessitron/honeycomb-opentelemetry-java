@@ -108,6 +108,7 @@ public class DeterministicTraceSampler implements Sampler {
         List<LinkData> parentLinks) {
 
         int sampleRate = sample(traceId);
+        System.out.println("Sample Rate: " + sampleRate);
         return createResult(sampleRate);
     }
 
