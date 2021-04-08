@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id('com.github.johnrengelman.shadow') version '6.0.0'
 }
 
 group 'io.honeycomb'
@@ -9,10 +10,21 @@ repositories {
     mavenCentral()
 }
 
+ext.relocatePackages = { shadowJar ->
+    // Prevents conflict with other SLF4J instances. Important for premain.
+    shadowJar.relocate 'org.slf4j', 'io.opentelemetry.javaagent.slf4j'
+    // rewrite dependencies calling Logger.getLogger
+    shadowJar.relocate 'java.util.logging.Logger', 'io.opentelemetry.javaagent.shaded.instrumentation'
+
+    // rewrite library instrumentation dependencies
+    shadowJar.relocate 'io.opentelemetry.instrumentation', 'io.opentelemetry.javaagent.shaded.instrumentation'
+}
+
 dependencies {
     implementation 'io.opentelemetry:opentelemetry-api:1.0.1'
     implementation 'io.opentelemetry:opentelemetry-sdk:1.0.1'
     implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.0.1'
+    implementation 'io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:1.1.0-alpha'
     implementation 'com.google.code.findbugs:jsr305:3.0.2'
     testCompile group: 'junit', name: 'junit', version: '4.13.2'
     testCompile group: 'org.mockito', name: 'mockito-core', version: '3.8.0'
