@@ -1,5 +1,7 @@
 plugins {
     id 'java'
+    id('com.github.johnrengelman.shadow') version '6.0.0'
+
 }
 
 group 'io.honeycomb'
@@ -7,15 +9,75 @@ version '1.0-SNAPSHOT'
 
 repositories {
     mavenCentral()
+
+    flatDir {
+      dirs '/Users/paul/projects/opentelemetry-java/sdk-extensions/autoconfigure/build/libs'
+    }   
+}
+
+apply from: "$rootDir/gradle/shadow.gradle"
+
+def relocatePackages = ext.relocatePackages
+
+configurations {
+    customShadow
+}
+
+tasks {
+    shadowJar {
+        with isolateSpec()
+
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+        mergeServiceFiles {
+            include("inst/META-INF/services/*")
+        }
+        exclude("**/module-info.class")
+
+        relocatePackages(it)
+
+        manifest {
+            attributes.put("Main-Class", "io.opentelemetry.javaagent.OpenTelemetryAgent")
+            attributes.put("Agent-Class", "io.opentelemetry.javaagent.OpenTelemetryAgent")
+            attributes.put("Premain-Class", "io.opentelemetry.javaagent.OpenTelemetryAgent")
+            attributes.put("Can-Redefine-Classes", "true")
+            attributes.put("Can-Retransform-Classes", "true")
+            attributes.put("Implementation-Vendor", "Demo")
+            attributes.put("Implementation-Version", "demo-1.1.0-otel-1.1.0")
+        }
+    }
+}
+
+CopySpec isolateSpec() {
+    return copySpec {
+        configurations.customShadow.files.each {
+            from(zipTree(it)) {
+                into("inst")
+                rename("(^.*)\\.class\$", "\$1.classdata")
+            }
+        }
+    }
 }
 
 dependencies {
     implementation 'io.opentelemetry:opentelemetry-api:1.0.1'
     implementation 'io.opentelemetry:opentelemetry-sdk:1.0.1'
     implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.0.1'
-    implementation 'io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:1.1.0-alpha'
+    implementation 'io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:1.1.0-SNAPSHOT'
+    implementation group: 'io.opentelemetry.javaagent', name: 'opentelemetry-javaagent', version: '1.0.1'
+    //implementation group: 'io.opentelemetry.javaagent', name: 'opentelemetry-javaagent-tooling', version: '0.16.1'
+
+    implementation 'io.grpc:grpc-netty-shaded:1.36.0'
+    implementation 'io.grpc:grpc-protobuf:1.36.0'
+    implementation 'io.grpc:grpc-stub:1.36.0'
+    compileOnly 'org.apache.tomcat:annotations-api:6.0.53' // necessary for Java 9+
+
     testCompile group: 'junit', name: 'junit', version: '4.13.2'
     testCompile group: 'org.mockito', name: 'mockito-core', version: '3.8.0'
     testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.7.1'
     testImplementation group: 'org.assertj', name: 'assertj-core', version: '3.19.0'
+}
+
+assemble {
+    dependsOn(shadowJar)
 }
